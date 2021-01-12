@@ -40,6 +40,7 @@ const newMiner = () => ({
   address:          '',
   alertHashRate:    350,
   isPolling:        false,
+  isError:          false,
   averageHashRate:  -1
 });
 
@@ -47,14 +48,18 @@ const StatusBar = ({ miner, updateMiner }) => {
   const { address, alertHashRate, isPolling, averageHashRate } = miner;
 
   return (
-    <div>
-      <Button onClick={() => {
-        updateMiner({ ...miner, isPolling: !isPolling })
-      }}>
-        { isPolling ? <BellIcon /> : <BellSlashIcon />}
-      </Button>
-      <p>{averageHashRate}</p>
-    </div>
+    <Form.Group>
+      <InputGroup>
+        <Button onClick={() => {
+          updateMiner({ ...miner, isPolling: !isPolling })
+        }}>
+          { isPolling ? <BellIcon /> : <BellSlashIcon />}
+        </Button>
+        <InputGroup.Append>
+          <InputGroup.Text>{averageHashRate} Mh/s</InputGroup.Text>
+        </InputGroup.Append>
+    </InputGroup>
+    </Form.Group>
   );
 };
 
@@ -64,7 +69,7 @@ const MinerStatus = ({ miner, updateMiner }) => {
   return (
     <Form>
       <Form.Group>
-        <Form.Control type='text' placeholder='Nickname' value={name} onChange={val => updateMiner({ ...miner, name: val })} />
+        <Form.Control type='text' placeholder='Nickname' value={name} onChange={evt => updateMiner({ ...miner, name: evt.target.value })} />
       </Form.Group>
       <Form.Group>
         <Form.Control type='text' placeholder='Address' value={address} onChange={(evt) => {
@@ -73,15 +78,13 @@ const MinerStatus = ({ miner, updateMiner }) => {
       </Form.Group>
       <Form.Group>
         <InputGroup>
-          <Form.Control type='number' placeholder='Minimum hash rate' value={alertHashRate} onChange={val => updateMiner({ ...miner, alertHashRate: val })} />
+          <Form.Control type='number' placeholder='Minimum hash rate' value={alertHashRate} onChange={evt => updateMiner({ ...miner, alertHashRate: evt.target.value })} />
           <InputGroup.Append>
             <InputGroup.Text id="basic-addon2">Mh/s</InputGroup.Text>
           </InputGroup.Append>
         </InputGroup>
       </Form.Group>
-      <Form.Group>
-        <StatusBar miner={miner} updateMiner={updateMiner} />
-      </Form.Group>
+      <StatusBar miner={miner} updateMiner={updateMiner} />
     </Form>
   );
 };
@@ -100,22 +103,33 @@ const Miners = () => {
         ? Promise.resolve({ data: averageHashRate })
         : fetch(`https://api.nanopool.org/v1/eth/avghashratelimited/${address}/1`).then(res => res.json())));
 
+    // update notifications
+    for (const miner of miners) {
+      const { isError, name, averageHashRate, alertHashRate } = miner;
+      if (averageHashRate > -1 && averageHashRate < alertHashRate) {
+        if (!isError) {
+          miner.isError = true;
+
+          await showNotification(`Miner '${name} is having trouble!`);
+        }
+      } else {
+        miner.isError = false;
+      }
+    }
+
     setMiners(miners.map((m, i) => ({
       ...m,
       averageHashRate: results[i].data
     })))
-
-    // update notifications
-    for (const { name, averageHashRate, alertHashRate } of miners) {
-      if (averageHashRate > -1 && averageHashRate < alertHashRate) {
-        await showNotification(`Miner '${name} is having trouble!`);
-      }
-    }
   }, 1000);
 
   return (
     <div>
-      <Button onClick={() => setMiners(miners.concat(newMiner()))}>New Miner</Button>
+      <Button onClick={async () => {
+        setMiners(miners.concat(newMiner()));
+
+        await Notification.requestPermission();
+      }}>New Miner</Button>
       <Container>
         {minerComponents}
       </Container>
