@@ -1,5 +1,5 @@
 import './App.css';
-import { Button, Col, Container, Form, InputGroup, Navbar, NavbarBrand, Row } from 'react-bootstrap';
+import { Button, Container, Form, InputGroup, Navbar } from 'react-bootstrap';
 import React, { useState } from 'react';
 import { BellIcon, BellSlashIcon, CheckIcon, KebabHorizontalIcon, StopIcon } from '@primer/octicons-react';
 
@@ -45,7 +45,7 @@ const newMiner = () => ({
 });
 
 const StatusBar = ({ miner, updateMiner }) => {
-  const { address, alertHashRate, isPolling, isError, averageHashRate } = miner;
+  const { isPolling, isError, averageHashRate } = miner;
 
   return (
     <Form.Group>
@@ -128,7 +128,8 @@ const Miners = ({ miners, setMiners }) => {
         if (!isError) {
           miner.isError = true;
 
-          await showNotification(`Miner '${name} is having trouble!`);
+          const time = new Date();
+          await showNotification(`Miner '${name}' is below threshold: a mere ${averageHashRate} Mh/s at ${time.getHours()}:${time.getMinutes()}!`);
         }
       } else {
         miner.isError = false;
