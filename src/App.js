@@ -1,7 +1,7 @@
 import './App.css';
-import { Button, Container, Form, InputGroup } from 'react-bootstrap';
+import { Button, Col, Container, Form, InputGroup, Navbar, NavbarBrand, Row } from 'react-bootstrap';
 import React, { useState } from 'react';
-import { BellIcon, BellSlashIcon } from '@primer/octicons-react';
+import { BellIcon, BellSlashIcon, CheckIcon, KebabHorizontalIcon, StopIcon } from '@primer/octicons-react';
 
 const showNotification = async (message) => {
   if (Notification.permission === "granted") {
@@ -45,11 +45,17 @@ const newMiner = () => ({
 });
 
 const StatusBar = ({ miner, updateMiner }) => {
-  const { address, alertHashRate, isPolling, averageHashRate } = miner;
+  const { address, alertHashRate, isPolling, isError, averageHashRate } = miner;
 
   return (
     <Form.Group>
       <InputGroup>
+        <InputGroup.Prepend>
+          <InputGroup.Text>
+            { isPolling ? (isError ? <StopIcon /> : <CheckIcon />) : <KebabHorizontalIcon /> }
+          </InputGroup.Text>
+        </InputGroup.Prepend>
+
         <Button onClick={() => {
           updateMiner({ ...miner, isPolling: !isPolling })
         }}>
@@ -58,44 +64,56 @@ const StatusBar = ({ miner, updateMiner }) => {
         <InputGroup.Append>
           <InputGroup.Text>{averageHashRate} Mh/s</InputGroup.Text>
         </InputGroup.Append>
-    </InputGroup>
+      </InputGroup>
     </Form.Group>
   );
 };
 
-const MinerStatus = ({ miner, updateMiner }) => {
+const MinerStatus = ({ miner, updateMiner, removeMiner }) => {
   const { name, address, alertHashRate } = miner;
 
   return (
-    <Form>
-      <Form.Group>
-        <Form.Control type='text' placeholder='Nickname' value={name} onChange={evt => updateMiner({ ...miner, name: evt.target.value })} />
-      </Form.Group>
-      <Form.Group>
-        <Form.Control type='text' placeholder='Address' value={address} onChange={(evt) => {
-          updateMiner({ ...miner, address: evt.target.value })
-        }} />
-      </Form.Group>
-      <Form.Group>
-        <InputGroup>
-          <Form.Control type='number' placeholder='Minimum hash rate' value={alertHashRate} onChange={evt => updateMiner({ ...miner, alertHashRate: evt.target.value })} />
-          <InputGroup.Append>
-            <InputGroup.Text id="basic-addon2">Mh/s</InputGroup.Text>
-          </InputGroup.Append>
-        </InputGroup>
-      </Form.Group>
-      <StatusBar miner={miner} updateMiner={updateMiner} />
-    </Form>
+    <div style={{ padding: '10px', margin: '6px', backgroundColor: '#EEEEEE' }}>
+      <Form>
+        <Form.Group>
+          <Button size='sm' variant='danger' onClick={() => removeMiner()}>Remove</Button>
+        </Form.Group>
+        <Form.Group>
+          <Form.Control type='text' placeholder='Nickname' value={name} onChange={evt => updateMiner({ ...miner, name: evt.target.value })} />
+        </Form.Group>
+        <Form.Group>
+          <Form.Control type='text' placeholder='Address' value={address} onChange={(evt) => {
+            updateMiner({ ...miner, address: evt.target.value })
+          }} />
+        </Form.Group>
+        <Form.Group>
+          <InputGroup>
+            <Form.Control type='number' placeholder='Minimum hash rate' value={alertHashRate} onChange={evt => updateMiner({ ...miner, alertHashRate: evt.target.value })} />
+            <InputGroup.Append>
+              <InputGroup.Text id="basic-addon2">Mh/s</InputGroup.Text>
+            </InputGroup.Append>
+          </InputGroup>
+        </Form.Group>
+        <StatusBar miner={miner} updateMiner={updateMiner} />
+      </Form>
+    </div>
   );
 };
 
-const Miners = () => {
-  const [miners, setMiners] = useState([]);
-  const minerComponents = miners.map((miner, i) => <MinerStatus key={i} miner={miner} updateMiner={updated => {
-    const newMiners = [...miners];
-    newMiners[i] = updated;
-    setMiners(newMiners);
-  }} />);
+const Miners = ({ miners, setMiners }) => {
+  const minerComponents = miners.map((miner, i) => <MinerStatus key={i} miner={miner}
+      updateMiner={updated => {
+        const newMiners = [...miners];
+        newMiners[i] = updated;
+        setMiners(newMiners);
+      }}
+      removeMiner={() => {
+        const newMiners = [...miners];
+        newMiners.splice(i, 1);
+        setMiners(newMiners);
+      }}
+    />
+  );
 
   useInterval(async () => {
     const results = await Promise.all(miners.map(({ address, averageHashRate, isPolling }) =>
@@ -121,27 +139,35 @@ const Miners = () => {
       ...m,
       averageHashRate: results[i].data
     })))
-  }, 1000);
+  }, 10000);
 
   return (
-    <div>
-      <Button onClick={async () => {
-        setMiners(miners.concat(newMiner()));
-
-        await Notification.requestPermission();
-      }}>New Miner</Button>
-      <Container>
-        {minerComponents}
-      </Container>
-    </div>
+    <Container>
+      {minerComponents}
+    </Container>
   )
 }
 
 function App() {
+  const json = localStorage.getItem('miners') || '[]';
+  const [miners, setMiners] = useState(JSON.parse(json));
+
   return (
-    <div>
+    <div style={{ paddingTop: '20px' }}>
       <Container>
-        <Miners />
+        <Navbar>
+          <Navbar.Brand>Nanopool Watcher</Navbar.Brand>
+          <Button onClick={async () => {
+            setMiners(miners.concat(newMiner()));
+
+            await Notification.requestPermission();
+          }}>Add Miner</Button>
+        </Navbar>
+        <Miners miners={miners} setMiners={newMiners => {
+          localStorage.setItem('miners', JSON.stringify(newMiners));
+
+          setMiners(newMiners);
+        }} />
       </Container>
     </div>
   );
